@@ -1,0 +1,27 @@
+version: "3.7"
+
+services:
+  postgres:
+    image: postgres
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - $HOME/docker/volumes/postgres:/var/lib/postgresql/data
+      - ./db-init-scripts:/tmp/datomic-sql-init/
+      - ./db-init.sh:/docker-entrypoint-initdb.d/db-init.sh
+  datomic:
+   container_name: datomic
+   build:
+     context: .
+     dockerfile: Dockerfile
+   depends_on:
+     wait-for-db:
+       condition: service_completed_successfully
+  wait-for-db:
+   image: atkrad/wait4x
+   depends_on:
+     - postgres
+   command: postgresql 'postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable' -t 30s -i 250ms
