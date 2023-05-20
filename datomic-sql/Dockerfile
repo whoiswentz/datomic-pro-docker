@@ -1,6 +1,6 @@
 FROM clojure:latest
 
-ENV DATOMIC_VERSION="1.0.6726"
+ENV DATOMIC_VERSION="1.0.6733"
 ENV DATOMIC_PATH="/opt/datomic-pro-${DATOMIC_VERSION}"
 
 RUN apt-get update -y && \
