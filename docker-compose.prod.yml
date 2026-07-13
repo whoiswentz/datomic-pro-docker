@@ -11,7 +11,7 @@ x-scylla-build: &scylla-build
   build:
     context: ./scylla
     args:
-      SCYLLA_VERSION: ${SCYLLA_VERSION:-6.2}
+      SCYLLA_VERSION: ${SCYLLA_VERSION:-2026.2}
   volumes:
     - ./certs:/etc/scylla/certs:ro
   healthcheck:
@@ -56,7 +56,7 @@ services:
         condition: service_healthy
 
   datomic-init:
-    image: scylladb/scylla:${SCYLLA_VERSION:-6.2}
+    image: scylladb/scylla:${SCYLLA_VERSION:-2026.2}
     container_name: datomic-init
     depends_on:
       scylla3:
