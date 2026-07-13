@@ -1,1 +1,0 @@
-chmod 775 db-init.sh

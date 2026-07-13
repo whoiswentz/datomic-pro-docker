@@ -1,0 +1,9 @@
+.git
+.env
+docs
+certs
+backups
+scylla
+*.md
+docker-compose*.yml
+examples

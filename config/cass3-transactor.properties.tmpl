@@ -1,0 +1,15 @@
+protocol=cass3
+host=${TRANSACTOR_HOST}
+port=4334
+
+cassandra-table=${SCYLLA_KEYSPACE}.${SCYLLA_TABLE}
+cassandra-host=${SCYLLA_CONTACT_POINTS}
+cassandra-port=${SCYLLA_CQL_PORT}
+cassandra-user=${DATOMIC_DB_USER}
+cassandra-password=${DATOMIC_DB_PASSWORD}
+cassandra-ssl=${CASSANDRA_SSL}
+cassandra-local-datacenter=${SCYLLA_DC}
+
+memory-index-threshold=${MEMORY_INDEX_THRESHOLD}
+memory-index-max=${MEMORY_INDEX_MAX}
+object-cache-max=${OBJECT_CACHE_MAX}

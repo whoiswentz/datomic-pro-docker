@@ -1,0 +1,4 @@
+{:paths ["src"]
+ :deps {com.datomic/peer {:mvn/version "1.0.7705"}
+        com.datastax.oss/java-driver-core-shaded {:mvn/version "4.17.0"}
+        org.slf4j/slf4j-nop {:mvn/version "2.0.16"}}}

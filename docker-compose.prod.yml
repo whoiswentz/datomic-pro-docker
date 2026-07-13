@@ -1,0 +1,105 @@
+name: datomic-scylla-prod
+
+# Production topology: a 3-node ScyllaDB cluster with RF=3, matching Datomic's
+# requirement of at least 3 nodes and replication factor >= 3. Single-DC only
+# (Datomic does not support cross-datacenter quorum). Resource-heavy: budget
+# ~2GB RAM per Scylla node.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+x-scylla-build: &scylla-build
+  build:
+    context: ./scylla
+    args:
+      SCYLLA_VERSION: ${SCYLLA_VERSION:-6.2}
+  volumes:
+    - ./certs:/etc/scylla/certs:ro
+  healthcheck:
+    test: ["CMD-SHELL", "nodetool info | grep -q 'Native Transport active: true' || exit 1"]
+    interval: 15s
+    timeout: 10s
+    retries: 40
+    start_period: 120s
+
+services:
+  scylla1:
+    <<: *scylla-build
+    container_name: scylla1
+    command: >
+      --seeds=scylla1 --smp ${SCYLLA_NODE_SMP:-2} --memory ${SCYLLA_NODE_MEMORY:-2G} --overprovisioned 1 --api-address 0.0.0.0
+    volumes:
+      - scylla1-data:/var/lib/scylla
+      - ./certs:/etc/scylla/certs:ro
+
+  scylla2:
+    <<: *scylla-build
+    container_name: scylla2
+    command: >
+      --seeds=scylla1 --smp ${SCYLLA_NODE_SMP:-2} --memory ${SCYLLA_NODE_MEMORY:-2G} --overprovisioned 1 --api-address 0.0.0.0
+    volumes:
+      - scylla2-data:/var/lib/scylla
+      - ./certs:/etc/scylla/certs:ro
+    depends_on:
+      scylla1:
+        condition: service_healthy
+
+  scylla3:
+    <<: *scylla-build
+    container_name: scylla3
+    command: >
+      --seeds=scylla1 --smp ${SCYLLA_NODE_SMP:-2} --memory ${SCYLLA_NODE_MEMORY:-2G} --overprovisioned 1 --api-address 0.0.0.0
+    volumes:
+      - scylla3-data:/var/lib/scylla
+      - ./certs:/etc/scylla/certs:ro
+    depends_on:
+      scylla2:
+        condition: service_healthy
+
+  datomic-init:
+    image: scylladb/scylla:${SCYLLA_VERSION:-6.2}
+    container_name: datomic-init
+    depends_on:
+      scylla3:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      SCYLLA_CONTACT_POINTS: scylla1
+      SCYLLA_RF: "3"
+      SCYLLA_SYSTEM_AUTH_RF: "3"
+    entrypoint: ["/bin/bash", "/scripts/provision-storage.sh"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./certs:/certs:ro
+    restart: "no"
+
+  datomic:
+    build:
+      context: .
+      args:
+        DATOMIC_VERSION: ${DATOMIC_VERSION:-1.0.7705}
+    container_name: datomic
+    depends_on:
+      datomic-init:
+        condition: service_completed_successfully
+    env_file: .env
+    environment:
+      SCYLLA_CONTACT_POINTS: scylla1
+    volumes:
+      - ./certs:/certs:ro
+      - ./backups:/backups
+    ports:
+      - "4334:4334"
+      - "4335:4335"
+      - "4336:4336"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/${TRANSACTOR_HOST:-datomic}/4334' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  scylla1-data:
+  scylla2-data:
+  scylla3-data:
