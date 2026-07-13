@@ -74,7 +74,7 @@ All configuration lives in `.env` (copied from `.env.example`).
 | `TRANSACTOR_HOST` | `datomic` | Host the transactor advertises to peers (must be resolvable by them). On the compose network this is the service name. |
 | `TRANSACTOR_XMX` / `TRANSACTOR_XMS` | `-Xmx1g` / `-Xms1g` | Transactor JVM heap. |
 | `MEMORY_INDEX_THRESHOLD` / `MEMORY_INDEX_MAX` / `OBJECT_CACHE_MAX` | `32m` / `256m` / `128m` | Datomic memory/index/cache tuning; keep consistent with `-Xmx`. |
-| `SCYLLA_VERSION` | `6.2` | `scylladb/scylla` image tag. |
+| `SCYLLA_VERSION` | `2026.2` | `scylladb/scylla` image tag. |
 | `SCYLLA_CONTACT_POINTS` | `scylla` | Comma-separated Scylla hosts (a single contact point is enough — the driver discovers the rest). |
 | `SCYLLA_CQL_PORT` | `9042` | Scylla CQL port. |
 | `SCYLLA_KEYSPACE` / `SCYLLA_TABLE` | `datomic3` / `datomic3` | Keyspace + table (`cassandra-table` = `keyspace.table`). |
