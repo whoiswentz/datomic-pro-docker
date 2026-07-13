@@ -1,0 +1,18 @@
+# Override fragment appended to the image's default /etc/scylla/scylla.yaml
+# (see scylla/Dockerfile). Only sets keys that are commented out in the default,
+# so no duplicate keys are introduced. The ScyllaDB entrypoint injects network
+# settings (seeds, listen/rpc address) at container start.
+cluster_name: 'datomic-scylla'
+
+# ── Authentication & authorization ──────────────────────
+authenticator: PasswordAuthenticator
+authorizer: CassandraAuthorizer
+
+# ── Client-to-node encryption (mutual TLS) ──────────────
+# Certs are mounted at /etc/scylla/certs (see docker-compose volumes).
+client_encryption_options:
+  enabled: true
+  certificate: /etc/scylla/certs/scylla.crt
+  keyfile: /etc/scylla/certs/scylla.key
+  truststore: /etc/scylla/certs/ca.crt
+  require_client_auth: true

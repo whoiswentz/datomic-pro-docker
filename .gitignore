@@ -1,0 +1,17 @@
+# Secrets & config
+.env
+
+# Generated TLS material (keep only the generator script + cqlsh config)
+certs/*
+!certs/generate-certs.sh
+!certs/cqlshrc
+
+# Local volumes / data / backups
+data/
+backups/
+*.log
+
+# Clojure / build
+examples/peer-smoke-test/.cpcache/
+examples/peer-smoke-test/target/
+.DS_Store
