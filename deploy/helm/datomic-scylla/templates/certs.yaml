@@ -1,0 +1,33 @@
+{{- if .Values.tls.mutual.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata: { name: {{ include "datomic-scylla.fullname" . }}-selfsigned, namespace: {{ .Values.namespace }} }
+spec: { selfSigned: {} }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: { name: {{ include "datomic-scylla.fullname" . }}-ca, namespace: {{ .Values.namespace }} }
+spec:
+  isCA: true
+  commonName: datomic-scylla-ca
+  secretName: {{ include "datomic-scylla.fullname" . }}-ca-tls
+  issuerRef: { name: {{ include "datomic-scylla.fullname" . }}-selfsigned, kind: Issuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata: { name: {{ include "datomic-scylla.fullname" . }}-ca-issuer, namespace: {{ .Values.namespace }} }
+spec: { ca: { secretName: {{ include "datomic-scylla.fullname" . }}-ca-tls } }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: { name: {{ include "datomic-scylla.fullname" . }}-client, namespace: {{ .Values.namespace }} }
+spec:
+  secretName: {{ include "datomic-scylla.fullname" . }}-client-tls
+  commonName: {{ .Values.auth.appUser }}
+  usages: [ "client auth", "digital signature", "key encipherment" ]
+  issuerRef: { name: {{ include "datomic-scylla.fullname" . }}-ca-issuer, kind: Issuer }
+  keystores:
+    pkcs12:
+      create: true
+      passwordSecretRef: { name: {{ include "datomic-scylla.secretName" . }}, key: keystore-password }
+{{- end }}

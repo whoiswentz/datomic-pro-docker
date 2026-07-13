@@ -144,8 +144,30 @@ Notes:
 - Budget ~2 GB RAM per Scylla node (tune via `SCYLLA_NODE_MEMORY` / `SCYLLA_NODE_SMP`).
 - Single-datacenter only — Datomic does not support cross-DC quorum.
 - For transactor **high availability**, run a standby transactor pointed at the
-  same storage (see [Datomic HA docs](https://docs.datomic.com/operation/ha.html));
-  not included here.
+  same storage (see [Datomic HA docs](https://docs.datomic.com/operation/ha.html)).
+  On Compose this is manual; the Kubernetes chart runs 2 replicas by default.
+
+> The Compose prod topology above is handy for local prod-like testing. For real
+> production, prefer the Kubernetes chart below.
+
+## Production on Kubernetes
+
+For production, deploy with the Helm chart at
+[`deploy/helm/datomic-scylla/`](deploy/helm/datomic-scylla/) — ScyllaDB via the
+**ScyllaDB Operator** (which also handles node tuning like `fs.aio-max-nr`),
+a **2-replica** transactor StatefulSet on `cass3` over TLS (CQL port **9142**),
+**cert-manager** for optional mutual TLS, and a Helm-hook provisioning Job.
+
+```bash
+# prereqs: ScyllaDB Operator + (optional) cert-manager installed; a default StorageClass;
+# and the transactor image pushed to a registry the cluster can pull.
+docker build -t ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705 . && docker push $_
+kubectl create namespace datomic
+helm install datomic deploy/helm/datomic-scylla -n datomic
+```
+
+Dev stays on docker-compose (above). See the [chart README](deploy/helm/datomic-scylla/README.md)
+for values, secrets, mutual-TLS, and cloud notes.
 
 ## Connecting a peer
 

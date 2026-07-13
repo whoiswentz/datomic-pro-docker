@@ -1,0 +1,67 @@
+namespace: datomic
+
+image:
+  repository: ghcr.io/whoiswentz/datomic-scylla-transactor
+  tag: "1.0.7705"
+  pullPolicy: IfNotPresent
+
+scylla:
+  clusterName: datomic-scylla
+  scyllaVersion: "2026.2"
+  agentVersion: "3.5.0"           # scylla-manager-agent; verify against the Operator
+  datacenter: datacenter1
+  rack: rack1
+  members: 3
+  storageClassName: ""            # "" = cluster default
+  storageCapacity: 100Gi
+  resources:
+    requests: { cpu: "1", memory: 4Gi }
+    limits:   { cpu: "1", memory: 4Gi }
+  # Secret published by the Operator holding Scylla's serving CA (verify name/key):
+  servingCASecret: datomic-scylla-local-serving-ca
+  servingCAKey: ca-bundle.crt
+
+datomic:
+  replicas: 2
+  datomicVersion: "1.0.7705"
+  heartbeatIntervalMsec: 5000
+  jvm: { xms: "-Xms4g", xmx: "-Xmx4g" }
+  memory: { indexThreshold: 32m, indexMax: 512m, objectCacheMax: 1g }
+  resources:
+    requests: { cpu: "1", memory: 5Gi }
+    limits:   { cpu: "2", memory: 5Gi }
+
+storage:
+  keyspace: datomic3
+  table: datomic3
+  cqlPort: 9142
+  dc: datacenter1
+  rf: 3
+  systemAuthRf: 3
+
+auth:
+  appUser: datomic3
+  superUser: cassandra
+
+tls:
+  mutual:
+    enabled: false                # optional client-cert mutual TLS
+
+# Secrets: set existingSecret to a pre-created Secret for prod. If empty, the
+# chart templates a Secret from the values below (non-prod only). An
+# existingSecret MUST provide the same 5 keys (see README).
+secrets:
+  existingSecret: ""
+  appPassword: change-me-app-password
+  superuserPassword: change-me-scylla-superuser
+  superuserBootstrapPassword: cassandra
+  truststorePassword: change-me-truststore
+  keystorePassword: change-me-keystore
+
+provisioning:
+  enabled: true
+  scyllaImage: "scylladb/scylla:2026.2"   # provides cqlsh
+
+backups:
+  enabled: false
+  schedule: "0 2 * * *"

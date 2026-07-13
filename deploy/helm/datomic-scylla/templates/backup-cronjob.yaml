@@ -1,0 +1,19 @@
+{{- if .Values.backups.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}-backup
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backups.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              command: ["sh", "-c", "echo 'Wire ./bin/datomic backup-db here, targeting a PVC/object store. Scylla Manager handles storage-level backups.'"]
+{{- end }}

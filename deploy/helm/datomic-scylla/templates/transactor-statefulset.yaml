@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "datomic-scylla.fullname" . }}-headless
+  replicas: {{ .Values.datomic.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels: {{- include "datomic-scylla.labels" . | nindent 8 }}
+    spec:
+      volumes:
+        - { name: tls-work, emptyDir: {} }
+        - name: scylla-ca
+          secret: { secretName: {{ .Values.scylla.servingCASecret }} }
+        {{- if .Values.tls.mutual.enabled }}
+        - name: client
+          secret: { secretName: {{ include "datomic-scylla.fullname" . }}-client-tls }
+        {{- end }}
+      initContainers:
+        - name: build-truststore
+          image: eclipse-temurin:17-jre-jammy
+          command: ["sh", "-c"]
+          args:
+            - >
+              keytool -importcert -noprompt -alias scylla-ca
+              -file /scylla-ca/{{ .Values.scylla.servingCAKey }}
+              -keystore /work/truststore.p12 -storetype PKCS12
+              -storepass "$TRUSTSTORE_PASSWORD"
+          env:
+            - name: TRUSTSTORE_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: truststore-password } }
+          volumeMounts:
+            - { name: scylla-ca, mountPath: /scylla-ca }
+            - { name: tls-work, mountPath: /work }
+      containers:
+        - name: transactor
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - { containerPort: 4334 }
+            - { containerPort: 4335 }
+            - { containerPort: 4336 }
+          env:
+            - { name: DATOMIC_VERSION, value: {{ .Values.datomic.datomicVersion | quote }} }
+            # POD_NAME must precede TRANSACTOR_HOST so k8s expands $(POD_NAME).
+            - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
+            - name: TRANSACTOR_HOST     # advertise the pod's stable headless DNS
+              value: "$(POD_NAME).{{ include "datomic-scylla.fullname" . }}-headless.{{ .Values.namespace }}.svc"
+            - { name: TRANSACTOR_XMS, value: {{ .Values.datomic.jvm.xms | quote }} }
+            - { name: TRANSACTOR_XMX, value: {{ .Values.datomic.jvm.xmx | quote }} }
+            - { name: MEMORY_INDEX_THRESHOLD, value: {{ .Values.datomic.memory.indexThreshold | quote }} }
+            - { name: MEMORY_INDEX_MAX, value: {{ .Values.datomic.memory.indexMax | quote }} }
+            - { name: OBJECT_CACHE_MAX, value: {{ .Values.datomic.memory.objectCacheMax | quote }} }
+            - { name: SCYLLA_CONTACT_POINTS, value: {{ include "datomic-scylla.scyllaCqlHost" . | quote }} }
+            - { name: SCYLLA_CQL_PORT, value: {{ .Values.storage.cqlPort | quote }} }
+            - { name: SCYLLA_KEYSPACE, value: {{ .Values.storage.keyspace | quote }} }
+            - { name: SCYLLA_TABLE, value: {{ .Values.storage.table | quote }} }
+            - { name: SCYLLA_DC, value: {{ .Values.storage.dc | quote }} }
+            - { name: CASSANDRA_SSL, value: "true" }
+            - { name: SCYLLA_REQUIRE_CLIENT_AUTH, value: {{ .Values.tls.mutual.enabled | quote }} }
+            - { name: DATOMIC_DB_USER, value: {{ .Values.auth.appUser | quote }} }
+            - name: DATOMIC_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: app-password } }
+            - name: TRUSTSTORE_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: truststore-password } }
+            {{- if .Values.tls.mutual.enabled }}
+            - name: KEYSTORE_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: keystore-password } }
+            {{- end }}
+          volumeMounts:
+            - { name: tls-work, mountPath: /certs, readOnly: true }
+            {{- if .Values.tls.mutual.enabled }}
+            - { name: client, mountPath: /client, readOnly: true }
+            {{- end }}
+          readinessProbe: { tcpSocket: { port: 4334 }, initialDelaySeconds: 30, periodSeconds: 10 }
+          livenessProbe:  { tcpSocket: { port: 4334 }, initialDelaySeconds: 90, periodSeconds: 20 }
+          resources: {{- toYaml .Values.datomic.resources | nindent 12 }}

@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}-provision
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+data:
+  cqlshrc: |
+    [connection]
+    factory = cqlshlib.ssl.ssl_transport_factory
+    [ssl]
+    certfile = /scylla-ca/{{ .Values.scylla.servingCAKey }}
+    validate = true
+    {{- if .Values.tls.mutual.enabled }}
+    userkey = /client/tls.key
+    usercert = /client/tls.crt
+    {{- end }}
+  provision.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HOST="{{ include "datomic-scylla.scyllaCqlHost" . }}"; PORT="{{ .Values.storage.cqlPort }}"
+    RF="{{ .Values.storage.rf }}"; AUTH_RF="{{ .Values.storage.systemAuthRf }}"
+    KS="{{ .Values.storage.keyspace }}"; TBL="{{ .Values.storage.table }}"
+    SU="{{ .Values.auth.superUser }}"
+    esc() { printf '%s' "$1" | sed "s/'/''/g"; }
+    DB_PASS_ESC="$(esc "$DATOMIC_DB_PASSWORD")"; SU_PASS_ESC="$(esc "$CASSANDRA_SUPERUSER_PASSWORD")"
+    cql() { local pw="$1"; shift; cqlsh --ssl --cqlshrc=/tmp/cqlshrc -u "$SU" -p "$pw" "$HOST" "$PORT" "$@"; }
+    cp /cfg/cqlshrc /tmp/cqlshrc
+    echo "Waiting for Scylla auth+TLS at $HOST:$PORT"
+    ACTIVE=""
+    for i in $(seq 1 60); do
+      if cql "$CASSANDRA_SUPERUSER_PASSWORD" -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="$CASSANDRA_SUPERUSER_PASSWORD"; break
+      elif cql "$CASSANDRA_SUPERUSER_BOOTSTRAP_PASSWORD" -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="$CASSANDRA_SUPERUSER_BOOTSTRAP_PASSWORD"; break; fi
+      [ "$i" = 60 ] && { echo "Scylla not ready" >&2; exit 1; }; sleep 5
+    done
+    cql "$ACTIVE" <<CQL
+    CREATE KEYSPACE IF NOT EXISTS ${KS} WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${RF}};
+    CREATE TABLE IF NOT EXISTS ${KS}.${TBL} (id2 text PRIMARY KEY, rev bigint, map text, val blob, chunks int);
+    CREATE ROLE IF NOT EXISTS ${DATOMIC_DB_USER} WITH PASSWORD='${DB_PASS_ESC}' AND LOGIN=true;
+    ALTER ROLE ${DATOMIC_DB_USER} WITH PASSWORD='${DB_PASS_ESC}' AND LOGIN=true;
+    GRANT ALL PERMISSIONS ON KEYSPACE ${KS} TO ${DATOMIC_DB_USER};
+    ALTER KEYSPACE system_auth WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${AUTH_RF}};
+    CQL
+    if [ "$ACTIVE" != "$CASSANDRA_SUPERUSER_PASSWORD" ]; then cql "$ACTIVE" -e "ALTER ROLE ${SU} WITH PASSWORD='${SU_PASS_ESC}';"; fi
+    echo "Provisioning complete"

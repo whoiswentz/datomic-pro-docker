@@ -1,0 +1,6 @@
+apiVersion: v2
+name: datomic-scylla
+description: Datomic Pro on ScyllaDB (cass3) for production Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.0.7705"
