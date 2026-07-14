@@ -8,8 +8,7 @@ metadata:
 spec:
   {{- if .Values.datomic.pdb.minAvailable }}
   minAvailable: {{ .Values.datomic.pdb.minAvailable }}
-  {{- end }}
-  {{- if .Values.datomic.pdb.maxUnavailable }}
+  {{- else if .Values.datomic.pdb.maxUnavailable }}
   maxUnavailable: {{ .Values.datomic.pdb.maxUnavailable }}
   {{- end }}
   selector:

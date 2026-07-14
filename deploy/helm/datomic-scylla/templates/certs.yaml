@@ -15,6 +15,7 @@ spec:
   keystores:
     pkcs12:
       create: true
+      # Note: The Modern2023 profile requires cert-manager v1.14+
       profile: Modern2023
       passwordSecretRef: { name: {{ include "datomic-scylla.secretName" . }}, key: keystore-password }
 {{- end }}
