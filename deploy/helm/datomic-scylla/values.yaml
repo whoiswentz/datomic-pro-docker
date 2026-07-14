@@ -22,7 +22,7 @@ scylla:
   # Secret published by the Operator holding Scylla's serving CA (verified on the
   # ScyllaDB Operator: a kubernetes.io/tls secret named <cluster>-local-serving-ca
   # with the CA under tls.crt):
-  servingCASecret: datomic-scylla-local-serving-ca
+  servingCAConfigMap: datomic-scylla-local-serving-ca
   servingCAKey: tls.crt
 
 datomic:
@@ -31,10 +31,6 @@ datomic:
   heartbeatIntervalMsec: 5000
   podSecurityContext:
     fsGroup: 1001
-  securityContext:
-    runAsUser: 1001
-    runAsNonRoot: true
-    allowPrivilegeEscalation: false
   nodeSelector: {}
   tolerations: []
   affinity:
@@ -89,6 +85,3 @@ provisioning:
   enabled: true
   scyllaImage: "scylladb/scylla:2026.2.1"   # provides cqlsh
 
-backups:
-  enabled: false
-  schedule: "0 2 * * *"

@@ -39,10 +39,10 @@ data:
     cat <<CQL > /tmp/schema.cql
     CREATE KEYSPACE IF NOT EXISTS ${KS} WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${RF}};
     CREATE TABLE IF NOT EXISTS ${KS}.${TBL} (id2 text PRIMARY KEY, rev bigint, map text, val blob, chunks int);
+    ALTER KEYSPACE system_auth WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${AUTH_RF}};
     CREATE ROLE IF NOT EXISTS ${DATOMIC_DB_USER} WITH PASSWORD='${DB_PASS_ESC}' AND LOGIN=true;
     ALTER ROLE ${DATOMIC_DB_USER} WITH PASSWORD='${DB_PASS_ESC}' AND LOGIN=true;
     GRANT ALL PERMISSIONS ON KEYSPACE ${KS} TO ${DATOMIC_DB_USER};
-    ALTER KEYSPACE system_auth WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${AUTH_RF}};
     CQL
     
     if [ "$ACTIVE" = "NOAUTH" ]; then

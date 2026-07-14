@@ -30,13 +30,18 @@ spec:
       volumes:
         - { name: tls-work, emptyDir: {} }
         - name: scylla-ca
-          secret: { secretName: {{ .Values.scylla.servingCASecret }} }
+          configMap: { name: {{ .Values.scylla.servingCAConfigMap }} }
         {{- if .Values.tls.mutual.enabled }}
         - name: client
           secret: { secretName: {{ include "datomic-scylla.fullname" . }}-client-tls }
         {{- end }}
       initContainers:
         - name: build-truststore
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
           image: eclipse-temurin:17-jre-jammy
           command: ["sh", "-c"]
           args:
@@ -53,9 +58,10 @@ spec:
             - { name: tls-work, mountPath: /work }
       containers:
         - name: transactor
-          {{- with .Values.datomic.securityContext }}
-          securityContext: {{- toYaml . | nindent 12 }}
-          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -70,6 +76,7 @@ spec:
               value: "$(POD_NAME).{{ include "datomic-scylla.fullname" . }}-headless.{{ .Values.namespace }}.svc"
             - { name: TRANSACTOR_XMS, value: {{ .Values.datomic.jvm.xms | quote }} }
             - { name: TRANSACTOR_XMX, value: {{ .Values.datomic.jvm.xmx | quote }} }
+            - { name: HEARTBEAT_INTERVAL_MSEC, value: {{ .Values.datomic.heartbeatIntervalMsec | quote }} }
             - { name: MEMORY_INDEX_THRESHOLD, value: {{ .Values.datomic.memory.indexThreshold | quote }} }
             - { name: MEMORY_INDEX_MAX, value: {{ .Values.datomic.memory.indexMax | quote }} }
             - { name: OBJECT_CACHE_MAX, value: {{ .Values.datomic.memory.objectCacheMax | quote }} }

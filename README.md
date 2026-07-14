@@ -129,7 +129,7 @@ a **2-replica** transactor StatefulSet on `cass3` over TLS (CQL port **9142**),
 ```bash
 # prereqs: ScyllaDB Operator + (optional) cert-manager installed; a default StorageClass;
 # and the transactor image pushed to a registry the cluster can pull.
-docker build -t ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705 . && docker push $_
+docker build -t ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705 . && docker push ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705
 kubectl create namespace datomic
 helm install datomic deploy/helm/datomic-scylla -n datomic
 ```
@@ -143,7 +143,7 @@ Peers read storage **directly**, so they connect with a `cass3` URI and need the
 truststore (and keystore, under mutual TLS) on their JVM:
 
 ```
-datomic:cass3://<scylla-host>:9042/<keyspace>.<table>/<db-name>?user=<u>&password=<p>&ssl=true&local-datacenter=datacenter1
+datomic:cass3://<scylla-headless-svc>:9142/<keyspace>.<table>/<db-name>?user=<u>&password=<p>&ssl=true
 ```
 
 `TRANSACTOR_HOST` must be resolvable by the peer (it's how the peer reaches the
