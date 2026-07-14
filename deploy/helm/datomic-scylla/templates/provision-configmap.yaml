@@ -25,15 +25,18 @@ data:
     esc() { printf '%s' "$1" | sed "s/'/''/g"; }
     DB_PASS_ESC="$(esc "$DATOMIC_DB_PASSWORD")"; SU_PASS_ESC="$(esc "$CASSANDRA_SUPERUSER_PASSWORD")"
     cql() { local pw="$1"; shift; cqlsh --ssl --cqlshrc=/tmp/cqlshrc -u "$SU" -p "$pw" "$HOST" "$PORT" "$@"; }
+    cql_noauth() { cqlsh --ssl --cqlshrc=/tmp/cqlshrc "$HOST" "$PORT" "$@"; }
     cp /cfg/cqlshrc /tmp/cqlshrc
     echo "Waiting for Scylla auth+TLS at $HOST:$PORT"
     ACTIVE=""
     for i in $(seq 1 60); do
-      if cql "$CASSANDRA_SUPERUSER_PASSWORD" -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="$CASSANDRA_SUPERUSER_PASSWORD"; break
+      if cql_noauth -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="NOAUTH"; break
+      elif cql "$CASSANDRA_SUPERUSER_PASSWORD" -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="$CASSANDRA_SUPERUSER_PASSWORD"; break
       elif cql "$CASSANDRA_SUPERUSER_BOOTSTRAP_PASSWORD" -e "SELECT now() FROM system.local;" >/dev/null 2>&1; then ACTIVE="$CASSANDRA_SUPERUSER_BOOTSTRAP_PASSWORD"; break; fi
       [ "$i" = 60 ] && { echo "Scylla not ready" >&2; exit 1; }; sleep 5
     done
-    cql "$ACTIVE" <<CQL
+    
+    cat <<CQL > /tmp/schema.cql
     CREATE KEYSPACE IF NOT EXISTS ${KS} WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${RF}};
     CREATE TABLE IF NOT EXISTS ${KS}.${TBL} (id2 text PRIMARY KEY, rev bigint, map text, val blob, chunks int);
     CREATE ROLE IF NOT EXISTS ${DATOMIC_DB_USER} WITH PASSWORD='${DB_PASS_ESC}' AND LOGIN=true;
@@ -41,5 +44,11 @@ data:
     GRANT ALL PERMISSIONS ON KEYSPACE ${KS} TO ${DATOMIC_DB_USER};
     ALTER KEYSPACE system_auth WITH replication = {'class':'NetworkTopologyStrategy','{{ .Values.storage.dc }}':${AUTH_RF}};
     CQL
-    if [ "$ACTIVE" != "$CASSANDRA_SUPERUSER_PASSWORD" ]; then cql "$ACTIVE" -e "ALTER ROLE ${SU} WITH PASSWORD='${SU_PASS_ESC}';"; fi
+    
+    if [ "$ACTIVE" = "NOAUTH" ]; then
+      cql_noauth -f /tmp/schema.cql
+    else
+      cql "$ACTIVE" -f /tmp/schema.cql
+      if [ "$ACTIVE" != "$CASSANDRA_SUPERUSER_PASSWORD" ]; then cql "$ACTIVE" -e "ALTER ROLE ${SU} WITH PASSWORD='${SU_PASS_ESC}';"; fi
+    fi
     echo "Provisioning complete"

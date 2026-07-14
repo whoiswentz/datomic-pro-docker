@@ -7,19 +7,23 @@ image:
 
 scylla:
   clusterName: datomic-scylla
-  scyllaVersion: "2026.2"
+  scyllaVersion: "2026.2.1"
   agentVersion: "3.5.0"           # scylla-manager-agent; verify against the Operator
   datacenter: datacenter1
   rack: rack1
   members: 3
+  cpuset: true                    # CPU pinning (Guaranteed QoS); set false on constrained clusters
+  developerMode: false
   storageClassName: ""            # "" = cluster default
   storageCapacity: 100Gi
   resources:
     requests: { cpu: "1", memory: 4Gi }
     limits:   { cpu: "1", memory: 4Gi }
-  # Secret published by the Operator holding Scylla's serving CA (verify name/key):
+  # Secret published by the Operator holding Scylla's serving CA (verified on the
+  # ScyllaDB Operator: a kubernetes.io/tls secret named <cluster>-local-serving-ca
+  # with the CA under tls.crt):
   servingCASecret: datomic-scylla-local-serving-ca
-  servingCAKey: ca-bundle.crt
+  servingCAKey: tls.crt
 
 datomic:
   replicas: 2
@@ -60,7 +64,7 @@ secrets:
 
 provisioning:
   enabled: true
-  scyllaImage: "scylladb/scylla:2026.2"   # provides cqlsh
+  scyllaImage: "scylladb/scylla:2026.2.1"   # provides cqlsh
 
 backups:
   enabled: false

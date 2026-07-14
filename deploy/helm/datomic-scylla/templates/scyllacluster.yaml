@@ -7,8 +7,8 @@ metadata:
 spec:
   version: {{ .Values.scylla.scyllaVersion | quote }}
   agentVersion: {{ .Values.scylla.agentVersion | quote }}
-  developerMode: false
-  cpuset: true
+  developerMode: {{ .Values.scylla.developerMode }}
+  cpuset: {{ .Values.scylla.cpuset }}
   datacenter:
     name: {{ .Values.scylla.datacenter }}
     racks:

@@ -19,8 +19,12 @@ if [ "${CASSANDRA_SSL:-true}" = "true" ]; then
     -Djavax.net.ssl.trustStorePassword="${TRUSTSTORE_PASSWORD}"
   )
   if [ "${SCYLLA_REQUIRE_CLIENT_AUTH:-true}" = "true" ]; then
+    KEYSTORE_PATH="/certs/keystore.p12"
+    if [ -f "/client/keystore.p12" ]; then
+      KEYSTORE_PATH="/client/keystore.p12"
+    fi
     JVM_OPTS+=(
-      -Djavax.net.ssl.keyStore=/certs/keystore.p12
+      -Djavax.net.ssl.keyStore="${KEYSTORE_PATH}"
       -Djavax.net.ssl.keyStoreType=PKCS12
       -Djavax.net.ssl.keyStorePassword="${KEYSTORE_PASSWORD}"
     )
