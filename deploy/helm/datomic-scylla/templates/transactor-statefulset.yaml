@@ -15,6 +15,18 @@ spec:
     metadata:
       labels: {{- include "datomic-scylla.labels" . | nindent 8 }}
     spec:
+      {{- with .Values.datomic.podSecurityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.datomic.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.datomic.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.datomic.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
         - { name: tls-work, emptyDir: {} }
         - name: scylla-ca
@@ -41,6 +53,9 @@ spec:
             - { name: tls-work, mountPath: /work }
       containers:
         - name: transactor
+          {{- with .Values.datomic.securityContext }}
+          securityContext: {{- toYaml . | nindent 12 }}
+          {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

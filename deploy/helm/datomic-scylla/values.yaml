@@ -29,6 +29,29 @@ datomic:
   replicas: 2
   datomicVersion: "1.0.7705"
   heartbeatIntervalMsec: 5000
+  podSecurityContext:
+    fsGroup: 1001
+  securityContext:
+    runAsUser: 1001
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - datomic-scylla
+            topologyKey: kubernetes.io/hostname
+  pdb:
+    enabled: true
+    minAvailable: 1
   jvm: { xms: "-Xms4g", xmx: "-Xmx4g" }
   memory: { indexThreshold: 32m, indexMax: 512m, objectCacheMax: 1g }
   resources:
