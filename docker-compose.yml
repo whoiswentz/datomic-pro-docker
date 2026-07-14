@@ -1,7 +1,7 @@
 name: datomic-scylla
 
 # Dev topology: a single ScyllaDB node (RF=1). Not Datomic's production
-# recommendation (see docker-compose.prod.yml for the 3-node / RF=3 cluster),
+# recommendation (see the Kubernetes chart for the 3-node / RF=3 cluster),
 # but ideal for local development.
 
 services:

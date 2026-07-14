@@ -116,39 +116,7 @@ provisioning if you switch `CREATE ROLE` to include an `ALTER ROLE`, or rotate
 manually via `cqlsh`). Regenerate certs with `./certs/generate-certs.sh` and
 rebuild the Scylla image to rotate TLS material.
 
-## Production (3-node cluster, RF=3)
 
-Datomic requires **≥3 nodes and RF ≥3** for production. `docker-compose.prod.yml`
-runs a 3-node ScyllaDB cluster and provisions the keyspace and `system_auth` at
-RF=3.
-
-```bash
-cp .env.example .env      # edit secrets; RF is overridden to 3 by the prod file
-./certs/generate-certs.sh
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec scylla1 nodetool status   # expect 3× UN
-```
-
-Notes:
-- **Host prerequisite:** raise `fs.aio-max-nr` to `1048576` on the Docker host —
-  multiple Scylla nodes exhaust the default `65536`, which breaks `nodetool` (and
-  thus the healthcheck). On Docker Desktop:
-  `docker run --rm --privileged alpine sysctl -w fs.aio-max-nr=1048576`
-  (re-run after a VM restart, or set it permanently on a real host via
-  `/etc/sysctl.d`). ScyllaDB recommends this regardless.
-- Seeds all point at `scylla1` for deterministic, ordered bootstrap (a node
-  rejects an unresolvable seed, so nodes cannot seed on peers that start later).
-- `cassandra-host` takes a **single** contact point (`scylla1`); the driver
-  auto-discovers the rest of the cluster from it. For multi-contact-point
-  bootstrap HA, supply a DataStax driver `cassandra-config-file` instead.
-- Budget ~2 GB RAM per Scylla node (tune via `SCYLLA_NODE_MEMORY` / `SCYLLA_NODE_SMP`).
-- Single-datacenter only — Datomic does not support cross-DC quorum.
-- For transactor **high availability**, run a standby transactor pointed at the
-  same storage (see [Datomic HA docs](https://docs.datomic.com/operation/ha.html)).
-  On Compose this is manual; the Kubernetes chart runs 2 replicas by default.
-
-> The Compose prod topology above is handy for local prod-like testing. For real
-> production, prefer the Kubernetes chart below.
 
 ## Production on Kubernetes
 
@@ -196,8 +164,7 @@ Datomic-native backups (run inside the `datomic` container; output to `./backups
 mkdir -p backups
 ./scripts/backup.sh  <db-name>                       # → ./backups/<db-name>
 ./scripts/restore.sh <db-name>                        # restore into Scylla
-# prod: pass the compose file as the 2nd arg
-./scripts/backup.sh  <db-name> docker-compose.prod.yml
+
 ```
 
 ## Troubleshooting
