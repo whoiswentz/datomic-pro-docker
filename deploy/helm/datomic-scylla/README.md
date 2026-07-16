@@ -82,11 +82,14 @@ Do **not** ship real secrets in `values.yaml`. Pre-create a Secret and set
 app-password, superuser-password, truststore-password, keystore-password
 ```
 
-`app-password` and `superuser-password` are fail-closed: the chart refuses to
-install while they hold their default values. The two PKCS12 store passwords are
-not, because neither is a confidentiality boundary — the truststore holds only
-Scylla's public serving CA, and cert-manager writes `keystore.p12` into the same
-Secret that already holds its `tls.key` in the clear.
+The guards only cover the Secret the chart templates: when `existingSecret` is
+set they do not run, and nothing validates your Secret's contents — Helm cannot
+read it at render time. On the templated (non-prod) path, `appPassword` and
+`superuserPassword` are fail-closed, so the chart refuses to install while they
+hold their default values. The two PKCS12 store passwords are not, because
+neither is a confidentiality boundary — the truststore holds only Scylla's public
+serving CA, and cert-manager writes `keystore.p12` into the same Secret that
+already holds its `tls.key` in the clear.
 
 ### Seeding the superuser
 
@@ -99,11 +102,13 @@ mkpasswd -m sha-512 'the-same-password-as-secrets.superuserPassword'
 ```
 
 It is a salted hash rather than a password, which is why it can live in the
-`scylla.yaml` ConfigMap that the Operator's `scyllaConfig` requires. Keep it in
-sync with `secrets.superuserPassword` by hand: nothing validates the pair, and a
-mismatch surfaces as the provisioning Job failing its login probe. Scylla ignores
-both keys once the role exists, so rotating the superuser password afterwards
-means an `ALTER ROLE` by hand.
+`scylla.yaml` ConfigMap that the Operator's `scyllaConfig` requires. Hash
+whichever password the provisioning Job actually reads: `secrets.superuserPassword`
+normally, or your Secret's `superuser-password` key when `existingSecret` is set.
+Keep the pair in sync by hand — nothing validates it, and a mismatch surfaces as
+the provisioning Job failing its login probe. Scylla ignores both keys once the
+role exists, so rotating the superuser password afterwards means an `ALTER ROLE`
+by hand.
 
 ## Optional: mutual TLS
 
