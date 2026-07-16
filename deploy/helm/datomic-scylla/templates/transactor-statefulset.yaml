@@ -29,6 +29,12 @@ spec:
       {{- end }}
       volumes:
         - { name: tls-work, emptyDir: {} }
+        # The only paths the transactor writes to, so that its root filesystem
+        # can stay read-only: the rendered properties file, Datomic's log dir
+        # (bin/logback.xml, via DATOMIC_LOG_DIR) and /tmp (JVM scratch).
+        - { name: datomic-config, emptyDir: {} }
+        - { name: datomic-log, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
         - name: scylla-ca
           configMap: { name: {{ .Values.scylla.servingCAConfigMap }} }
         {{- if .Values.tls.mutual.enabled }}
@@ -56,11 +62,13 @@ spec:
           volumeMounts:
             - { name: scylla-ca, mountPath: /scylla-ca }
             - { name: tls-work, mountPath: /work }
+            - { name: tmp, mountPath: /tmp }
       containers:
         - name: transactor
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities: { drop: ["ALL"] }
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -70,6 +78,10 @@ spec:
             - { containerPort: 4336 }
           env:
             - { name: DATOMIC_VERSION, value: {{ .Values.datomic.datomicVersion | quote }} }
+            # Redirect the entrypoint's render target and Datomic's logback
+            # appender off the read-only root filesystem onto the mounts below.
+            - { name: TRANSACTOR_CONFIG_DIR, value: /var/run/datomic }
+            - { name: DATOMIC_LOG_DIR, value: /var/log/datomic }
             # POD_NAME must precede TRANSACTOR_HOST so k8s expands $(POD_NAME).
             - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }
             - name: TRANSACTOR_HOST     # advertise the pod's stable headless DNS
@@ -98,6 +110,9 @@ spec:
             {{- end }}
           volumeMounts:
             - { name: tls-work, mountPath: /certs, readOnly: true }
+            - { name: datomic-config, mountPath: /var/run/datomic }
+            - { name: datomic-log, mountPath: /var/log/datomic }
+            - { name: tmp, mountPath: /tmp }
             {{- if .Values.tls.mutual.enabled }}
             - { name: client, mountPath: /client, readOnly: true }
             {{- end }}

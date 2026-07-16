@@ -3,7 +3,12 @@
 # options, and launches the Datomic transactor on the cass3 backend.
 set -euo pipefail
 
-RENDERED="${DATOMIC_HOME}/config/cass3-transactor.properties"
+# Rendering into DATOMIC_HOME is the default, but it is the only write the
+# transactor makes to the image itself. Point TRANSACTOR_CONFIG_DIR at a mounted
+# volume and the root filesystem can be read-only (see the Helm chart).
+CONFIG_DIR="${TRANSACTOR_CONFIG_DIR:-${DATOMIC_HOME}/config}"
+RENDERED="${CONFIG_DIR}/cass3-transactor.properties"
+mkdir -p "$CONFIG_DIR"
 envsubst < /opt/templates/transactor.properties.tmpl > "$RENDERED"
 echo "==> Rendered transactor config:"
 sed 's/\(password=\).*/\1***/' "$RENDERED"
