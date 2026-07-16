@@ -25,7 +25,6 @@ datomic:
 
 storage:
   rf: 1
-  systemAuthRf: 1
 
 tls:
   mutual:

@@ -69,11 +69,19 @@ storage:
   cqlPort: 9142
   dc: datacenter1
   rf: 3
-  systemAuthRf: 3
 
 auth:
   appUser: datomic3
   superUser: cassandra
+  # Scylla 2026.2 ships no default superuser, so this hash is what creates the
+  # first one — the cluster has no other account the provisioning Job can use.
+  # It must hash the same password as secrets.superuserPassword; nothing can
+  # check that for you, and a mismatch fails the Job at the login probe.
+  # Generate with: mkpasswd -m sha-512 '<secrets.superuserPassword>'
+  # This is a salted hash rather than a password, which is why it can live in the
+  # scylla.yaml ConfigMap the Operator requires. Seeded once and then ignored:
+  # rotating the superuser password later is a manual ALTER ROLE.
+  superuserSaltedPassword: ""
 
 tls:
   mutual:
@@ -81,12 +89,17 @@ tls:
 
 # Secrets: set existingSecret to a pre-created Secret for prod. If empty, the
 # chart templates a Secret from the values below (non-prod only). An
-# existingSecret MUST provide the same 5 keys (see README).
+# existingSecret MUST provide the same 4 keys (see README).
 secrets:
   existingSecret: ""
   appPassword: change-me-app-password
+  # Must be the password hashed into auth.superuserSaltedPassword above.
   superuserPassword: change-me-scylla-superuser
-  superuserBootstrapPassword: cassandra
+  # PKCS12 store passwords, deliberately not fail-closed like the two above:
+  # neither is a confidentiality boundary. The truststore holds only Scylla's
+  # public serving CA and is rebuilt into an emptyDir on every pod start, and
+  # cert-manager writes keystore.p12 into the same Secret that already holds its
+  # tls.key in the clear. A PKCS12 password is an integrity check, not encryption.
   truststorePassword: change-me-truststore
   keystorePassword: change-me-keystore
 

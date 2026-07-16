@@ -33,8 +33,6 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: app-password } }
             - name: CASSANDRA_SUPERUSER_PASSWORD
               valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: superuser-password } }
-            - name: CASSANDRA_SUPERUSER_BOOTSTRAP_PASSWORD
-              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: superuser-bootstrap-password } }
           volumeMounts:
             - { name: cfg, mountPath: /cfg }
             - { name: scylla-ca, mountPath: /scylla-ca }
