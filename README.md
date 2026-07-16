@@ -80,7 +80,7 @@ All configuration lives in `.env` (copied from `.env.example`).
 | `SCYLLA_KEYSPACE` / `SCYLLA_TABLE` | `datomic3` / `datomic3` | Keyspace + table (`cassandra-table` = `keyspace.table`). |
 | `SCYLLA_DC` | `datacenter1` | Local datacenter — **required** by the V4 driver (`cassandra-local-datacenter`). Scylla's default DC is `datacenter1`. |
 | `SCYLLA_RF` | `1` | Keyspace replication factor (dev=1; prod=3). |
-| `CASSANDRA_SUPERUSER` / `CASSANDRA_SUPERUSER_PASSWORD` | `cassandra` / `cassandra` | Bootstrap superuser used **only** by `datomic-init`. Rotate/disable in prod. |
+| `CASSANDRA_SUPERUSER` / `CASSANDRA_SUPERUSER_PASSWORD` | `cassandra` / `change-me-scylla-superuser` | Superuser used **only** by `datomic-init`, seeded by `scylla/scylla.yaml` and rotated to this password on first run. |
 | `DATOMIC_DB_USER` / `DATOMIC_DB_PASSWORD` | `datomic3` / `change-me-app-password` | Least-privilege application role Datomic uses. Use a URL-safe password. |
 | `CASSANDRA_SSL` | `true` | Enable TLS from the transactor to Scylla. |
 | `SCYLLA_REQUIRE_CLIENT_AUTH` | `true` | Require a client certificate (mutual TLS). |
@@ -180,9 +180,9 @@ mkdir -p backups
   you connect as (`scylla`), and that `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD`
   match what `generate-certs.sh` used. Regenerate certs + rebuild the Scylla image
   after any `.env` password change.
-- **Scylla healthy but auth is slow on first boot** — `PasswordAuthenticator`
-  creates the default superuser asynchronously; `provision-storage.sh` retries for
-  ~5 minutes.
+- **Scylla healthy but auth is slow on first boot** — the superuser seeded by
+  `scylla/scylla.yaml` is created asynchronously; `provision-storage.sh` retries
+  for ~5 minutes.
 - **Prod: `system_auth` under-replicated** — provisioning raises `system_auth` RF
   to match `SCYLLA_RF`; run `nodetool repair system_auth` after adding nodes.
 - **Prod: a node stuck "health: starting" / `nodetool` errors with "Could not
