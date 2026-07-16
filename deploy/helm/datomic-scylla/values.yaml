@@ -29,8 +29,17 @@ datomic:
   replicas: 2
   datomicVersion: "1.0.7705"
   heartbeatIntervalMsec: 5000
+  # runAsUser is load-bearing, not decoration: with runAsNonRoot and no numeric
+  # UID the kubelet refuses to start either container — eclipse-temurin declares
+  # no image user (so it counts as root) and our own image declares `USER 1001`.
+  # 1001 is the datomic user the Dockerfile creates and chowns DATOMIC_HOME to.
   podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
     fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
   nodeSelector: {}
   tolerations: []
   affinity:
