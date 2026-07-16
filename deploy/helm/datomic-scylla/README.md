@@ -19,22 +19,36 @@ still uses docker-compose at the repo root; **this chart is the production path.
 
 ## Install
 
-The chart fails closed: it refuses to install on the default app/superuser
-passwords, and Scylla 2026.2 ships no superuser of its own, so you must seed one
-(see [Secrets in production](#secrets-in-production)).
+Scylla 2026.2 ships no superuser of its own, so you must seed one. Credentials go
+in a Secret you create — passing them with `--set` would persist them in the Helm
+release metadata, where `helm get values` can read them back. See
+[Secrets in production](#secrets-in-production).
 
 ```bash
 kubectl create namespace datomic
-# The hash must be of the same password you pass as secrets.superuserPassword.
+
+# 1. Credentials. Keep SU_PASS and the hash in step 2 in sync.
 SU_PASS='pick-a-real-password'
+kubectl -n datomic create secret generic datomic-secrets \
+  --from-literal=app-password='another-real-password' \
+  --from-literal=superuser-password="$SU_PASS" \
+  --from-literal=truststore-password="$(openssl rand -base64 24)" \
+  --from-literal=keystore-password="$(openssl rand -base64 24)"
+
+# 2. Install. The hash is not a secret — it seeds Scylla's superuser via a
+#    ConfigMap — but it must hash the superuser-password above.
 helm install datomic deploy/helm/datomic-scylla -n datomic \
-  --set secrets.appPassword='another-real-password' \
-  --set secrets.superuserPassword="$SU_PASS" \
+  --set secrets.existingSecret=datomic-secrets \
   --set-string auth.superuserSaltedPassword="$(mkpasswd -m sha-512 "$SU_PASS")"
+
 # provisioning runs before install returns; the Job is kept, so read its logs after
 kubectl -n datomic logs job/datomic-datomic-scylla-provision
 kubectl -n datomic logs statefulset/datomic-datomic-scylla | grep "System started"
 ```
+
+Both commands above still put a password in your shell history; for real
+deployments source the Secret from your secret manager (External Secrets, Sealed
+Secrets, or similar) instead of `create secret --from-literal`.
 
 Upgrade with `helm upgrade datomic deploy/helm/datomic-scylla -n datomic` (the
 provisioning Job re-runs as a post-upgrade hook; it is idempotent).
