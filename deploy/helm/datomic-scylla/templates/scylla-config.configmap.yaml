@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}-scylla-config
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+{{- if not .Values.auth.superuserSaltedPassword }}
+{{- fail "auth.superuserSaltedPassword is required: Scylla 2026.2 creates no superuser of its own, so a cluster without it has no account to provision with. Generate one with `mkpasswd -m sha-512 '<your secrets.superuserPassword>'`." }}
+{{- end }}
+{{- /* toString: an all-digit value arrives as an int64 and would blow up regexMatch
+       with a Go type error instead of the message below — the very case this catches. */}}
+{{- if not (regexMatch "^\\$(2[ay]|5|6)\\$" (toString .Values.auth.superuserSaltedPassword)) }}
+{{- fail "auth.superuserSaltedPassword must be a salted hash, not a plaintext password. Scylla stores it verbatim as the role's salted_hash and accepts only $6$ (sha-512), $5$ (sha-256) or $2a$/$2y$ (bcrypt). Generate one with `mkpasswd -m sha-512`." }}
+{{- end }}
+data:
+  # Merged into each node's scylla.yaml by the Operator (scyllacluster.yaml wires
+  # this in as the rack's scyllaConfig). Scylla defaults to AllowAllAuthenticator,
+  # so without the first two keys the cluster accepts unauthenticated CQL and
+  # every credential this chart manages is ignored.
+  #
+  # The auth_superuser_* pair seeds the first superuser. Scylla 2026.2 removed the
+  # cassandra/cassandra default ("There is no default superuser role in ScyllaDB"),
+  # and its other documented route — cqlsh over the node-local maintenance socket —
+  # is unreachable from the provisioning Job, so seeding it here is what gives that
+  # Job an account to connect with. Both keys are ignored once the role exists, so
+  # rotating the superuser password later means an ALTER ROLE by hand.
+  scylla.yaml: |
+    authenticator: PasswordAuthenticator
+    authorizer: CassandraAuthorizer
+    auth_superuser_name: {{ .Values.auth.superUser }}
+    auth_superuser_salted_password: {{ .Values.auth.superuserSaltedPassword | quote }}

@@ -1,0 +1,24 @@
+apiVersion: scylla.scylladb.com/v1
+kind: ScyllaCluster
+metadata:
+  name: {{ .Values.scylla.clusterName }}
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+spec:
+  version: {{ .Values.scylla.scyllaVersion | quote }}
+  agentVersion: {{ .Values.scylla.agentVersion | quote }}
+  developerMode: {{ .Values.scylla.developerMode }}
+  cpuset: {{ .Values.scylla.cpuset }}
+  datacenter:
+    name: {{ .Values.scylla.datacenter }}
+    racks:
+      - name: {{ .Values.scylla.rack }}
+        members: {{ .Values.scylla.members }}
+        scyllaConfig: {{ include "datomic-scylla.fullname" . }}-scylla-config
+        storage:
+          capacity: {{ .Values.scylla.storageCapacity }}
+          {{- with .Values.scylla.storageClassName }}
+          storageClassName: {{ . }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.scylla.resources | nindent 10 }}

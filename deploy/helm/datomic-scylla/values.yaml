@@ -1,0 +1,110 @@
+namespace: datomic
+
+image:
+  repository: ghcr.io/whoiswentz/datomic-scylla-transactor
+  tag: "1.0.7705"
+  pullPolicy: IfNotPresent
+
+scylla:
+  clusterName: datomic-scylla
+  scyllaVersion: "2026.2.1"
+  agentVersion: "3.5.0"           # scylla-manager-agent; verify against the Operator
+  datacenter: datacenter1
+  rack: rack1
+  members: 3
+  cpuset: true                    # CPU pinning (Guaranteed QoS); set false on constrained clusters
+  developerMode: false
+  storageClassName: ""            # "" = cluster default
+  storageCapacity: 100Gi
+  resources:
+    requests: { cpu: "1", memory: 4Gi }
+    limits:   { cpu: "1", memory: 4Gi }
+  # Secret published by the Operator holding Scylla's serving CA (verified on the
+  # ScyllaDB Operator: a kubernetes.io/tls secret named <cluster>-local-serving-ca
+  # with the CA under tls.crt):
+  servingCAConfigMap: datomic-scylla-local-serving-ca
+  servingCAKey: tls.crt
+
+datomic:
+  replicas: 2
+  datomicVersion: "1.0.7705"
+  heartbeatIntervalMsec: 5000
+  # runAsUser is load-bearing, not decoration: with runAsNonRoot and no numeric
+  # UID the kubelet refuses to start either container — eclipse-temurin declares
+  # no image user (so it counts as root) and our own image declares `USER 1001`.
+  # 1001 is the datomic user the Dockerfile creates and chowns DATOMIC_HOME to.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - datomic-scylla
+            topologyKey: kubernetes.io/hostname
+  pdb:
+    enabled: true
+    minAvailable: 1
+  jvm: { xms: "-Xms4g", xmx: "-Xmx4g" }
+  memory: { indexThreshold: 32m, indexMax: 512m, objectCacheMax: 1g }
+  resources:
+    requests: { cpu: "1", memory: 5Gi }
+    limits:   { cpu: "2", memory: 5Gi }
+
+storage:
+  keyspace: datomic3
+  table: datomic3
+  cqlPort: 9142
+  dc: datacenter1
+  rf: 3
+
+auth:
+  appUser: datomic3
+  superUser: cassandra
+  # Scylla 2026.2 ships no default superuser, so this hash is what creates the
+  # first one — the cluster has no other account the provisioning Job can use.
+  # It must hash whichever password that Job reads: secrets.superuserPassword
+  # below, or the existingSecret's superuser-password key. Nothing can check that
+  # for you, and a mismatch fails the Job at its login probe.
+  # Generate with: mkpasswd -m sha-512 '<that password>'
+  # This is a salted hash rather than a password, which is why it can live in the
+  # scylla.yaml ConfigMap the Operator requires. Seeded once and then ignored:
+  # rotating the superuser password later is a manual ALTER ROLE.
+  superuserSaltedPassword: ""
+
+tls:
+  mutual:
+    enabled: false                # optional client-cert mutual TLS
+
+# Secrets: set existingSecret to a pre-created Secret for prod. If empty, the
+# chart templates a Secret from the values below (non-prod only). An
+# existingSecret MUST provide the same 4 keys (see README).
+secrets:
+  existingSecret: ""
+  appPassword: change-me-app-password
+  # Must be the password hashed into auth.superuserSaltedPassword above.
+  superuserPassword: change-me-scylla-superuser
+  # PKCS12 store passwords, deliberately not fail-closed like the two above:
+  # neither is a confidentiality boundary. The truststore holds only Scylla's
+  # public serving CA and is rebuilt into an emptyDir on every pod start, and
+  # cert-manager writes keystore.p12 into the same Secret that already holds its
+  # tls.key in the clear. A PKCS12 password is an integrity check, not encryption.
+  truststorePassword: change-me-truststore
+  keystorePassword: change-me-keystore
+
+provisioning:
+  enabled: true
+  scyllaImage: "scylladb/scylla:2026.2.1"   # provides cqlsh
+

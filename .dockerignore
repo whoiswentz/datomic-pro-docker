@@ -7,3 +7,5 @@ scylla
 *.md
 docker-compose*.yml
 examples
+deploy
+.claude

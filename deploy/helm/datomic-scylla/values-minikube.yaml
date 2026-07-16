@@ -1,0 +1,31 @@
+# Minikube-scaled overrides for LOCAL TESTING ONLY — not production.
+#   helm install datomic deploy/helm/datomic-scylla -n datomic \
+#     -f deploy/helm/datomic-scylla/values-minikube.yaml
+image:
+  repository: datomic-scylla-transactor
+  tag: local
+  pullPolicy: Never               # use the image loaded via `minikube image load`
+
+scylla:
+  members: 1
+  cpuset: false                   # no CPU pinning on a small local node
+  developerMode: true             # relaxed checks for a single small node
+  storageCapacity: 5Gi
+  resources:
+    requests: { cpu: "500m", memory: 1Gi }
+    limits:   { cpu: "2", memory: 2Gi }
+
+datomic:
+  replicas: 1                     # HA needs 2; 1 is enough to test mechanics
+  jvm: { xms: "-Xms512m", xmx: "-Xmx1g" }
+  memory: { indexThreshold: 32m, indexMax: 256m, objectCacheMax: 128m }
+  resources:
+    requests: { cpu: "250m", memory: 1Gi }
+    limits:   { cpu: "1", memory: 2Gi }
+
+storage:
+  rf: 1
+
+tls:
+  mutual:
+    enabled: true

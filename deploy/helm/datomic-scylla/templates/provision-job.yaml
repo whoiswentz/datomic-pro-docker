@@ -1,0 +1,42 @@
+{{- if .Values.provisioning.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}-provision
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: cfg
+          configMap: { name: {{ include "datomic-scylla.fullname" . }}-provision, defaultMode: 0755 }
+        - name: scylla-ca
+          configMap: { name: {{ .Values.scylla.servingCAConfigMap }} }
+        {{- if .Values.tls.mutual.enabled }}
+        - name: client
+          secret: { secretName: {{ include "datomic-scylla.fullname" . }}-client-tls }
+        {{- end }}
+      containers:
+        - name: provision
+          image: {{ .Values.provisioning.scyllaImage | quote }}
+          command: ["/bin/bash", "/cfg/provision.sh"]
+          env:
+            - { name: DATOMIC_DB_USER, value: {{ .Values.auth.appUser | quote }} }
+            - name: DATOMIC_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: app-password } }
+            - name: CASSANDRA_SUPERUSER_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "datomic-scylla.secretName" . }}, key: superuser-password } }
+          volumeMounts:
+            - { name: cfg, mountPath: /cfg }
+            - { name: scylla-ca, mountPath: /scylla-ca }
+            {{- if .Values.tls.mutual.enabled }}
+            - { name: client, mountPath: /client }
+            {{- end }}
+{{- end }}

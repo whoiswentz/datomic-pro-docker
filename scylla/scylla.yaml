@@ -8,6 +8,20 @@ cluster_name: 'datomic-scylla'
 authenticator: PasswordAuthenticator
 authorizer: CassandraAuthorizer
 
+# Seeds the bootstrap superuser. ScyllaDB 2026.2 removed the built-in
+# cassandra/cassandra account ("There is no default superuser role in ScyllaDB"),
+# so without this a fresh cluster has auth enabled and no account at all, and
+# datomic-init can never log in to create the datomic role.
+#
+# The hash below is sha-512 crypt of the literal string "cassandra" — the same
+# well-known default older Scylla shipped, so it is not a secret, and
+# provision-storage.sh rotates it to CASSANDRA_SUPERUSER_PASSWORD on first run.
+# Both keys are ignored once the role has a password, so that rotation sticks
+# across restarts. This is the dev stack; the Helm chart takes a real hash.
+# Regenerate with: openssl passwd -6 -salt datomicdev cassandra
+auth_superuser_name: cassandra
+auth_superuser_salted_password: '$6$datomicdev$pCdsJRxMYbvW0qS0aIcCGEhDiUArJPYSXHNHoigxFmndBlaw8NW0Ynq8fqUt2XNdP3UpUsFQCvjIEw3oLexI9/'
+
 # ── Client-to-node encryption (mutual TLS) ──────────────
 # Certs are mounted at /etc/scylla/certs (see docker-compose volumes).
 client_encryption_options:

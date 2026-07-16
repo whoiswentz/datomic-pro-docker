@@ -15,3 +15,5 @@ backups/
 examples/peer-smoke-test/.cpcache/
 examples/peer-smoke-test/target/
 .DS_Store
+docs/
+.claude/

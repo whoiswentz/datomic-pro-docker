@@ -1,0 +1,11 @@
+Datomic transactor: svc/{{ include "datomic-scylla.fullname" . }} :4334 (in-cluster peers)
+Scylla CQL (TLS): {{ include "datomic-scylla.scyllaCqlHost" . }}:{{ .Values.storage.cqlPort }}
+{{- if .Values.provisioning.enabled }}
+
+Provisioning ran as a post-install/upgrade hook Job, which finished before this
+message. The Job is kept on success, so its logs are still there:
+  kubectl -n {{ .Values.namespace }} logs job/{{ include "datomic-scylla.fullname" . }}-provision
+{{- end }}
+
+Transactor startup:
+  kubectl -n {{ .Values.namespace }} logs statefulset/{{ include "datomic-scylla.fullname" . }} | grep "System started"

@@ -80,7 +80,7 @@ All configuration lives in `.env` (copied from `.env.example`).
 | `SCYLLA_KEYSPACE` / `SCYLLA_TABLE` | `datomic3` / `datomic3` | Keyspace + table (`cassandra-table` = `keyspace.table`). |
 | `SCYLLA_DC` | `datacenter1` | Local datacenter — **required** by the V4 driver (`cassandra-local-datacenter`). Scylla's default DC is `datacenter1`. |
 | `SCYLLA_RF` | `1` | Keyspace replication factor (dev=1; prod=3). |
-| `CASSANDRA_SUPERUSER` / `CASSANDRA_SUPERUSER_PASSWORD` | `cassandra` / `cassandra` | Bootstrap superuser used **only** by `datomic-init`. Rotate/disable in prod. |
+| `CASSANDRA_SUPERUSER` / `CASSANDRA_SUPERUSER_PASSWORD` | `cassandra` / `change-me-scylla-superuser` | Superuser used **only** by `datomic-init`, seeded by `scylla/scylla.yaml` and rotated to this password on first run. |
 | `DATOMIC_DB_USER` / `DATOMIC_DB_PASSWORD` | `datomic3` / `change-me-app-password` | Least-privilege application role Datomic uses. Use a URL-safe password. |
 | `CASSANDRA_SSL` | `true` | Enable TLS from the transactor to Scylla. |
 | `SCYLLA_REQUIRE_CLIENT_AUTH` | `true` | Require a client certificate (mutual TLS). |
@@ -116,36 +116,26 @@ provisioning if you switch `CREATE ROLE` to include an `ALTER ROLE`, or rotate
 manually via `cqlsh`). Regenerate certs with `./certs/generate-certs.sh` and
 rebuild the Scylla image to rotate TLS material.
 
-## Production (3-node cluster, RF=3)
 
-Datomic requires **≥3 nodes and RF ≥3** for production. `docker-compose.prod.yml`
-runs a 3-node ScyllaDB cluster and provisions the keyspace and `system_auth` at
-RF=3.
+
+## Production on Kubernetes
+
+For production, deploy with the Helm chart at
+[`deploy/helm/datomic-scylla/`](deploy/helm/datomic-scylla/) — ScyllaDB via the
+**ScyllaDB Operator** (which also handles node tuning like `fs.aio-max-nr`),
+a **2-replica** transactor StatefulSet on `cass3` over TLS (CQL port **9142**),
+**cert-manager** for optional mutual TLS, and a Helm-hook provisioning Job.
 
 ```bash
-cp .env.example .env      # edit secrets; RF is overridden to 3 by the prod file
-./certs/generate-certs.sh
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec scylla1 nodetool status   # expect 3× UN
+# prereqs: ScyllaDB Operator + (optional) cert-manager installed; a default StorageClass;
+# and the transactor image pushed to a registry the cluster can pull.
+docker build -t ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705 . && docker push ghcr.io/whoiswentz/datomic-scylla-transactor:1.0.7705
+kubectl create namespace datomic
+helm install datomic deploy/helm/datomic-scylla -n datomic
 ```
 
-Notes:
-- **Host prerequisite:** raise `fs.aio-max-nr` to `1048576` on the Docker host —
-  multiple Scylla nodes exhaust the default `65536`, which breaks `nodetool` (and
-  thus the healthcheck). On Docker Desktop:
-  `docker run --rm --privileged alpine sysctl -w fs.aio-max-nr=1048576`
-  (re-run after a VM restart, or set it permanently on a real host via
-  `/etc/sysctl.d`). ScyllaDB recommends this regardless.
-- Seeds all point at `scylla1` for deterministic, ordered bootstrap (a node
-  rejects an unresolvable seed, so nodes cannot seed on peers that start later).
-- `cassandra-host` takes a **single** contact point (`scylla1`); the driver
-  auto-discovers the rest of the cluster from it. For multi-contact-point
-  bootstrap HA, supply a DataStax driver `cassandra-config-file` instead.
-- Budget ~2 GB RAM per Scylla node (tune via `SCYLLA_NODE_MEMORY` / `SCYLLA_NODE_SMP`).
-- Single-datacenter only — Datomic does not support cross-DC quorum.
-- For transactor **high availability**, run a standby transactor pointed at the
-  same storage (see [Datomic HA docs](https://docs.datomic.com/operation/ha.html));
-  not included here.
+Dev stays on docker-compose (above). See the [chart README](deploy/helm/datomic-scylla/README.md)
+for values, secrets, mutual-TLS, and cloud notes.
 
 ## Connecting a peer
 
@@ -153,7 +143,7 @@ Peers read storage **directly**, so they connect with a `cass3` URI and need the
 truststore (and keystore, under mutual TLS) on their JVM:
 
 ```
-datomic:cass3://<scylla-host>:9042/<keyspace>.<table>/<db-name>?user=<u>&password=<p>&ssl=true&local-datacenter=datacenter1
+datomic:cass3://<scylla-headless-svc>:9142/<keyspace>.<table>/<db-name>?user=<u>&password=<p>&ssl=true
 ```
 
 `TRANSACTOR_HOST` must be resolvable by the peer (it's how the peer reaches the
@@ -174,8 +164,7 @@ Datomic-native backups (run inside the `datomic` container; output to `./backups
 mkdir -p backups
 ./scripts/backup.sh  <db-name>                       # → ./backups/<db-name>
 ./scripts/restore.sh <db-name>                        # restore into Scylla
-# prod: pass the compose file as the 2nd arg
-./scripts/backup.sh  <db-name> docker-compose.prod.yml
+
 ```
 
 ## Troubleshooting
@@ -191,9 +180,9 @@ mkdir -p backups
   you connect as (`scylla`), and that `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD`
   match what `generate-certs.sh` used. Regenerate certs + rebuild the Scylla image
   after any `.env` password change.
-- **Scylla healthy but auth is slow on first boot** — `PasswordAuthenticator`
-  creates the default superuser asynchronously; `provision-storage.sh` retries for
-  ~5 minutes.
+- **Scylla healthy but auth is slow on first boot** — the superuser seeded by
+  `scylla/scylla.yaml` is created asynchronously; `provision-storage.sh` retries
+  for ~5 minutes.
 - **Prod: `system_auth` under-replicated** — provisioning raises `system_auth` RF
   to match `SCYLLA_RF`; run `nodetool repair system_auth` after adding nodes.
 - **Prod: a node stuck "health: starting" / `nodetool` errors with "Could not

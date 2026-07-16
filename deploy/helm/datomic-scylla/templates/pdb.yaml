@@ -1,0 +1,18 @@
+{{- if .Values.datomic.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "datomic-scylla.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "datomic-scylla.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.datomic.pdb.minAvailable }}
+  minAvailable: {{ .Values.datomic.pdb.minAvailable }}
+  {{- else if .Values.datomic.pdb.maxUnavailable }}
+  maxUnavailable: {{ .Values.datomic.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

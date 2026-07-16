@@ -19,9 +19,12 @@ RUN chmod +x /opt/entrypoint.sh
 
 # Run as a non-root user. It owns DATOMIC_HOME so the entrypoint can render the
 # properties file and the transactor can write logs there.
-RUN useradd -r -u 1001 -m -d /home/datomic datomic \
+# USER must be numeric: Kubernetes' runAsNonRoot check reads the image's user
+# field and cannot resolve a name to a UID, so `USER datomic` would be rejected.
+RUN groupadd -r -g 1001 datomic \
+    && useradd -r -u 1001 -g 1001 -m -d /home/datomic datomic \
     && chown -R datomic:datomic ${DATOMIC_HOME}
-USER datomic
+USER 1001:1001
 
 WORKDIR ${DATOMIC_HOME}
 EXPOSE 4334 4335 4336
